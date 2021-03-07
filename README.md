@@ -11,7 +11,7 @@ Architecture presented in the session
 # ec2 Image Builder
 
 ## Ansbile Component Config
-[ec2Image Builder - Ansible Component](ec2imagebuilder.yaml)
+[ec2Image Builder - Ansible Component](/imagebuilder/ansiblecomponent.yml)
 
 Note: make sure you replace the **bucketname** and **prefix** with your bucket and prefix details
 
@@ -30,4 +30,4 @@ Use this CFN templace to build an ec2 image builder pipeline based on an Ansible
 
 Zip file for the Ansible Playbook Association
 
-[State Manager - Association](automation.zip)
+[State Manager - Association](/statemanager/automation.zip)
