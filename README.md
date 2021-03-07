@@ -1,4 +1,4 @@
-# Dev Days Ansible Compliance Session
+# DevDays Ansible Compliance Session
 This repository has the code related to the Session "Enabling Cloud Native Compliance Using Ansible"
 
 
