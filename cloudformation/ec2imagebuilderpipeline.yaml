@@ -1,0 +1,140 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  BuildInstanceType:
+    Type: CommaDelimitedList
+    Default: "t2.large"
+    Description: Instance Type
+
+Resources:
+
+  ImageBuilderLogBucket:
+    Type: AWS::S3::Bucket
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      Comment: Role to be used by instance during image build.
+    Properties:
+      ManagedPolicyArns:
+        - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/AWSImageBuilderFullAccess
+        - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/EC2InstanceProfileForImageBuilder
+        - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/AmazonS3ReadOnlyAccess
+        - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/CloudWatchAgentServerPolicy
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+        Version: "2012-10-17"
+      Path: /executionServiceEC2Role/
+  InstanceRoleLoggingPolicy:
+    Type: AWS::IAM::Policy
+    Metadata:
+      Comment: Allows the instance to save log files to an S3 bucket.
+    Properties:
+      PolicyName: ImageBuilderLogBucketPolicy
+      Roles:
+        - Ref: InstanceRole
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - s3:PutObject
+            Effect: Allow
+            Resource:
+              - Fn::Sub:
+                  - arn:${AWS::Partition}:s3:::${BUCKET}/*
+                  - BUCKET:
+                      Ref: ImageBuilderLogBucket
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /executionServiceEC2Role/
+      Roles:
+        - Ref: InstanceRole
+  Amazon2ImageInfrastructureConfiguration:
+    Type: AWS::ImageBuilder::InfrastructureConfiguration
+    Properties:
+      Name: Amazon2-Infrastructure-Configuration
+      Description: Standard Intrastructure Configuration
+      InstanceProfileName:
+        Ref: InstanceProfile
+      InstanceTypes:
+        Ref: BuildInstanceType
+      Logging:
+        S3Logs:
+          S3BucketName:
+            Ref: ImageBuilderLogBucket
+          S3KeyPrefix: !Join [ "-", [ 'imagebuilder', !Ref "AWS::StackName" ] ]
+  InstallAnsibleComponent:
+    Type: AWS::ImageBuilder::Component
+    Properties:
+      Name: Ansible
+      Version: 0.0.1
+      Description: Insall Ansible Playbook
+      ChangeDescription: First version
+      Platform: Linux
+      Data: |
+        name: 'Ansible Playbook Execution on Amazon Linux 2'
+        description: 'This is a sample component that demonstrates how to download and execute an Ansible playbook against Amazon Linux 2.'
+        schemaVersion: 1.0
+        phases:
+          - name: build
+            steps:
+              - name: InstallAnsible
+                action: ExecuteBash
+                inputs:
+                  commands:
+                  - sudo amazon-linux-extras install -y ansible2
+              - name: DownloadPlaybook
+                action: S3Download
+                inputs:
+                  - source: s3://<bucketname>/<prefix>/*
+                    destination: /tmp/
+              - name: InvokeAnsible
+                action: ExecuteBash
+                inputs:
+                  commands: 
+                  - ansible-playbook /tmp/playbook.yml
+  Amazon2AnsibleImageRecipe:
+    Type: AWS::ImageBuilder::ImageRecipe
+    Properties:
+      Name: Ansible
+      Version: 0.0.1
+      ParentImage:
+        Fn::Sub: arn:${AWS::Partition}:imagebuilder:${AWS::Region}:aws:image/amazon-linux-2-x86/x.x.x
+      Components:
+        - ComponentArn: 
+            Fn::Sub: arn:aws:imagebuilder:${AWS::Region}:aws:component/amazon-cloudwatch-agent-linux/1.0.0
+        - ComponentArn: 
+            Fn::Sub: arn:aws:imagebuilder:${AWS::Region}:aws:component/reboot-linux/1.0.0
+        - ComponentArn:
+            Ref: InstallAnsibleComponent
+  AnsibleDistributionConfiguration:
+    Type: 'AWS::ImageBuilder::DistributionConfiguration'
+    Properties:
+      Name: Ansible-Distribution
+      Description: 'Local region distribution'
+      Distributions:
+        - Region: 
+            Fn::Sub: ${AWS::Region}
+          AmiDistributionConfiguration:
+            Name: 'ansible {{ imagebuilder:buildDate }}'
+            Description: 'Ansible'
+            AmiTags:
+              AmiTagKey: 'ami-tag-key'
+  AnsibleImagePipeline:
+    Type: 'AWS::ImageBuilder::ImagePipeline'
+    Properties:
+      Name: 'Ansible'
+      Description: 'Ansible Image Pipeline'
+      ImageRecipeArn: !Ref Amazon2AnsibleImageRecipe
+      InfrastructureConfigurationArn: !Ref Amazon2ImageInfrastructureConfiguration
+      DistributionConfigurationArn: !Ref AnsibleDistributionConfiguration
+      Status: 'ENABLED'
