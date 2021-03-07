@@ -12,7 +12,7 @@ phases:
       - name: DownloadPlaybook
         action: S3Download
         inputs:
-          - source: s3://ansible-artefacts-automation/builder/*
+          - source: s3://<bucketname>/<prefix>/*
             destination: /tmp/
       - name: InvokeAnsible
         action: ExecuteBash
