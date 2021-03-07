@@ -39,8 +39,8 @@ Resources:
           -  !Sub |
               {"owner":"${GitHubOwner}",
               "repository":"${GitHubRepo}",
-              "path":"${GitHubRepo}",
-              "getOptions":"branch:${GitHubPath}"}
+              "path":"${GitHubPath}",
+              "getOptions":"branch:${GitHubBranch}"}
         # Installing Ansible and its dependencies
         InstallDependencies:
           - 'True'
