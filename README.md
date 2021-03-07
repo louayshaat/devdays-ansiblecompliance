@@ -23,7 +23,8 @@ The context of the s3 bucket is available here [s3 bucket playbooks](/s3bucket)
 [ec2Image Builder - Pipeline](/cloudformation/ec2imagebuilderpipeline.yaml)
 
 Use this CFN templace to build an ec2 image builder pipeline based on an Ansible Component
-*Note*: Ensure you have your playbooks uploaded to an s3 bucket pre launching the CFN template. This template will only build the pipleline but will not run it
+
+**Note**: Ensure you have your playbooks uploaded to an s3 bucket pre launching the CFN template. This template will only build the pipleline but will not run it
 
 # Systems Manager - State Manager
 
