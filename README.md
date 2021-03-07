@@ -21,6 +21,7 @@ Note: make sure you replace the **bucketname** and **prefix** with your bucket a
 Use this CFN templace to build an ec2 image builder pipeline based on an Ansible Component
 
 Note: This template will also deploy the Ansible COmponent Above. make sure you replace the **bucketname** and **prefix** with your bucket and prefix details
+[![Launch Stack](https://cdn.rawgit.com/buildkite/cloudformation-launch-stack-button-svg/master/launch-stack.svg)](https://console.aws.amazon.com/cloudformation/home/stacks/create/review?stackName=AnsiblePipeline=https://github.com/louayshaat/devdays-ansiblecompliance/blob/main/ec2imagebuilder.yaml)
 
 
 # Systems Manager - State Manager
