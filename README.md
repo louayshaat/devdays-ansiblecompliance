@@ -16,7 +16,7 @@ Architecture presented in the session
 Note: make sure you replace the **bucketname** and **prefix** with your bucket and prefix details
 
 ## Cloudformation
-[ec2Image Builder - Pipeline](ec2imagebuilderpipeline.yaml)
+[ec2Image Builder - Pipeline](/cloudformation/ec2imagebuilderpipeline.yaml)
 
 Use this CFN templace to build an ec2 image builder pipeline based on an Ansible Component
 
