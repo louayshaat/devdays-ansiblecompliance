@@ -23,7 +23,7 @@ Use this CFN templace to build an ec2 image builder pipeline based on an Ansible
 Note: This template will also deploy the Ansible COmponent Above. make sure you replace the **bucketname** and **prefix** with your bucket and prefix details
 
 
-## Systems Manager - State Manager
+# Systems Manager - State Manager
 
 Zip file for the Ansible Playbook Association
 
