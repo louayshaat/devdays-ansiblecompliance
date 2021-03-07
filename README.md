@@ -15,6 +15,10 @@ Architecture presented in the session
 
 Note: make sure you replace the **bucketname** and **prefix** with your bucket and prefix details
 
+## s3 Bucket
+The context of the s3 bucket is available here [s3 bucket playbooks](/s3bucket)
+
+
 ## Cloudformation
 [ec2Image Builder - Pipeline](/cloudformation/ec2imagebuilderpipeline.yaml)
 
