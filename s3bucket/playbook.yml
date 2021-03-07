@@ -1,1 +1,9 @@
-
+---
+- name: Ansible
+  hosts: localhost
+  remote_user: ec2-user
+  become: yes
+ 
+  roles:
+    - common
+    - web
