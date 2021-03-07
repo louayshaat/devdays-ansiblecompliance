@@ -7,4 +7,4 @@ This repo includes ec2 image Builder and Systems Manager resources
 # ec2 Image Builder
 
 ## Ansbile Component Config
-[a relative link](ec2imagebuilder.md)
+[ec2Image Builder - Ansible Component](ec2imagebuilder)
