@@ -13,6 +13,9 @@ The Demo in the session built this architecture
 ## Ansbile Component Config
 [ec2Image Builder - Ansible Component](ec2imagebuilder.yaml)
 
+Note: make sure you replace the <buketname> and <prefix> with your bucket and prefix details
+
+
 
 ## Systems Manager - State Manager
 
