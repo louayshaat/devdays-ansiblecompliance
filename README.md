@@ -11,4 +11,11 @@ The Demo in the session built this architecture
 # ec2 Image Builder
 
 ## Ansbile Component Config
-[ec2Image Builder - Ansible Component](ec2imagebuilder)
+[ec2Image Builder - Ansible Component](ec2imagebuilder.yaml)
+
+
+## Systems Manager - State Manager
+
+Zip file for the Ansible Playbook Association
+
+[State Manager - Association](automation.zip)
