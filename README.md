@@ -19,7 +19,7 @@ Note: make sure you replace the **bucketname** and **prefix** with your bucket a
 The context of the s3 bucket is available here [s3 bucket playbooks](/s3bucket)
 
 
-## Cloudformation
+## CloudFormation Template
 [ec2Image Builder - Pipeline](/cloudformation/ec2imagebuilderpipeline.yaml)
 
 Use this CFN templace to build an ec2 image builder pipeline based on an Ansible Component
