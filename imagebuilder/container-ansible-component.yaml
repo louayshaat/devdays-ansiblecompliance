@@ -1,0 +1,26 @@
+name: 'Ansible Playbook Execution on Amazon Linux 2'
+description: 'This is a sample component that demonstrates how to download and execute an Ansible playbook against Amazon Linux 2.'
+schemaVersion: 1.0
+phases:
+  - name: build
+    steps:
+      - name: CreatingFolderWithOverwrite
+        action: CreateFolder
+        inputs:
+          - path: /tmp/ansible/
+            overwrite: false
+      - name: DownloadPlaybook
+        action: S3Download
+        inputs:
+          - source: s3://ansible-playbook/container/*
+            destination: /tmp/ansible/
+      - name: InstallAnsible
+        action: ExecuteBash
+        inputs:
+          commands:
+          - amazon-linux-extras install -y ansible2
+      - name: InvokeAnsible
+        action: ExecuteBash
+        inputs:
+          commands:
+          - ansible-playbook /tmp/ansible/playbook.yml
