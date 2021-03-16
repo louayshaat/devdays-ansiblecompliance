@@ -4,6 +4,11 @@ schemaVersion: 1.0
 phases:
   - name: build
     steps:
+      - name: CreatingFolderWithOverwrite
+        action: CreateFolder
+        inputs:
+          - path: /tmp/ansible/
+            overwrite: false
       - name: InstallAnsible
         action: ExecuteBash
         inputs:
@@ -13,9 +18,9 @@ phases:
         action: S3Download
         inputs:
           - source: s3://bucketname/prefix/*
-            destination: /tmp/
+            destination: /tmp/ansible/
       - name: InvokeAnsible
         action: ExecuteBash
         inputs:
           commands:
-          - ansible-playbook /tmp/playbook.yml
+          - ansible-playbook /tmp/ansible/playbook.yml
