@@ -21,7 +21,7 @@ The context of the s3 bucket that contaiuns your ansible playbooks are available
 
 
 ## CloudFormation Template
-[ec2Image Builder - Pipeline](/cloudformation/ec2imagebuilderpipeline.yaml)
+[Image Builder ec2 - Pipeline](/cloudformation/ec2imagebuilderpipeline.yaml)
 
 Use this CFN templace to build an EC2 Image Builder Pipeline based on an Ansible Component
 
@@ -41,7 +41,7 @@ Architecture presented in the session covering the lifecycle of compliance for e
 
 ### Ansbile Component Configuration
 Below is the Ansible Component you need to build your reciepe
-[ec2Image Builder - Ansible Component](/imagebuilder/container-ansible-component.yaml)
+[Image Builder container - Ansible Component](/imagebuilder/container-ansible-component.yaml)
 
 Note: make sure you replace the **bucketname** and **prefix** with your bucket and prefix details
 
