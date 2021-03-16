@@ -6,7 +6,7 @@ This repo includes EC2 Image Builder, Systems Manager and cloudformation resourc
 
 # Continious Compliance for ec2
 Architecture presented in the session covering the lifecycle of compliance for ec2
-![](architecture.png)
+![](images/architecture.png)
 
 ## EC2 Image Builder
 
@@ -37,7 +37,7 @@ Zip file for the Ansible Playbook Association
 
 # Continious Compliance for container images
 Architecture presented in the session covering the lifecycle of compliance for ec2
-![](architecture-container.png)
+![](images/architecture-container.png)
 
 ## EC2 Image Builder
 
