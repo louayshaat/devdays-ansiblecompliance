@@ -25,8 +25,6 @@ The context of the s3 bucket that contaiuns your ansible playbooks are available
 
 Use this CFN templace to build an EC2 Image Builder Pipeline based on an Ansible Component
 
-[![Deploy Continious Compliance for ec2 with CloudFormation](images/deploy-to-aws.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=EngagementMeter&templateURL=https://solution-builders-us-east-1.s3.us-east-1.amazonaws.com/amazon-rekognition-engagement-meter/latest/main.template)|
-
 **Note**: Ensure you have your playbooks uploaded to an [s3 bucket](/s3bucket/ec2) pre launching the CFN template. This template will only build the pipleline but will not run it
 
 ## Systems Manager - State Manager
