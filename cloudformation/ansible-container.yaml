@@ -1,5 +1,6 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 AWSTemplateFormatVersion: 2010-09-09
+Description: Automated Image Builder for ECR Images
 
 Parameters:
   BuildInstanceType:
@@ -9,7 +10,7 @@ Parameters:
   S3AnsibleBucket:
     Type: String
     Description: Enter bucketname that contains ansible playbooks
-    Default: ansible-playbook
+    Default: ansible-artefacts-automation
   S3BucketPrefix:
     Type: String
     Description: Enter bucket prefix
@@ -38,12 +39,12 @@ Resources:
     Metadata:
       Comment: Role to be used by instance during image build.
     Properties:
-      RoleName: Ansible-ECR
+      RoleName: Ansible-Container
       ManagedPolicyArns:
         - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/AWSImageBuilderFullAccess
         - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/EC2InstanceProfileForImageBuilder
         - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/EC2InstanceProfileForImageBuilderECRContainerBuilds
-        - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/AmazonS3ReadOnlyAccess
+        - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/AmazonS3FullAccess
         - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
         - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/AmazonSSMFullAccess
         - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/CloudWatchAgentServerPolicy
@@ -87,7 +88,7 @@ Resources:
   Amazon2ImageInfrastructureConfiguration:
     Type: AWS::ImageBuilder::InfrastructureConfiguration
     Properties:
-      Name: ECR-Infrastructure-Configuration
+      Name: Ansible-Container
       Description: Standard Intrastructure Configuration
       InstanceProfileName:
         Ref: InstanceProfile
@@ -101,7 +102,7 @@ Resources:
   InstallAnsibleComponent:
     Type: AWS::ImageBuilder::Component
     Properties:
-      Name: Ansible-ECR
+      Name: Ansible-Container
       Version: 1.0.0
       Description: Insall Ansible Playbook
       ChangeDescription: First version
@@ -143,8 +144,8 @@ Resources:
       # partition is aws. For resources elsewhere, the partition is aws-partitionname. For example, China (Beijing and Ningxia)
       # regions use aws-cn and AWS GovCloud (US) regions are aws-us-gov.
       # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/pseudo-parameter-reference.html
-      ParentImage:
-        Fn::Sub: arn:${AWS::Partition}:imagebuilder:${AWS::Region}:aws:image/amazon-linux-x86-latest/x.x.x
+      #ParentImage: amazonlinux:latest
+      ParentImage: amazonlinux:latest     
       ContainerType: 'DOCKER'
       Components:
         - ComponentArn:
@@ -154,13 +155,15 @@ Resources:
             RepositoryName: !Ref RepositoryName
       DockerfileTemplateData: |
           FROM {{{ imagebuilder:parentImage }}}
+          USER root
           {{{ imagebuilder:environments }}}
           {{{ imagebuilder:components }}}
-          RUN systemctl enable httpd       
+          EXPOSE 80
+          CMD ["httpd","-D", "FOREGROUND"]
   AnsibleDistributionConfiguration:
     Type: 'AWS::ImageBuilder::DistributionConfiguration'
     Properties:
-      Name: Ansible-ECR-Distribution
+      Name: Ansible-Container
       Description: 'Local region distribution'
       Distributions:
         - Region: 
@@ -173,7 +176,7 @@ Resources:
   AnsibleImagePipeline:
     Type: 'AWS::ImageBuilder::ImagePipeline'
     Properties:
-      Name: 'Ansible-ECR'
+      Name: 'Ansible-Container'
       Description: 'Ansible Image Pipeline'
       ContainerRecipeArn: !Ref AnsibleContainerRecipe
       InfrastructureConfigurationArn: !Ref Amazon2ImageInfrastructureConfiguration
