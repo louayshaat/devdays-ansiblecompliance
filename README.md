@@ -34,7 +34,7 @@ Zip file for the Ansible Playbook Association
 [State Manager - Association](/statemanager/automation.zip)
 
 # Continious Compliance for container images
-Architecture presented in the session covering the lifecycle of compliance for ec2
+This wasnt covered in the session but you have the ability to do the same for container images.
 ![](images/architecture-container.png)
 
 ## EC2 Image Builder
