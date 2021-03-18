@@ -1,5 +1,6 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 AWSTemplateFormatVersion: 2010-09-09
+Description: Automated Image Builder for ec2 instances
 
 Parameters:
   BuildInstanceType:
