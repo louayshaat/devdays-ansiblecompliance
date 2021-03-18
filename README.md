@@ -50,7 +50,7 @@ The context of the s3 bucket that contaiuns your ansible playbooks are available
 
 
 ## CloudFormation Template
-[ec2Image Builder - Pipeline](/cloudformation/ansible-container.yaml)
+[Image Builder container - Pipeline](/cloudformation/ansible-container.yaml)
 
 Use this CFN templace to build a container Image Builder Pipeline based on an Ansible Component
 
