@@ -5,16 +5,16 @@ Description: Automated Image Builder for ec2 instances
 Parameters:
   BuildInstanceType:
     Type: CommaDelimitedList
-    Default: "t2.large"
+    Default: "t3.xlarge"
     Description: Instance Type
   S3AnsibleBucket:
     Type: String
     Description: Enter bucketname that contains ansible playbooks
-    Default: ansible-playbook
+    Default: ec2-compliance-dev-123456789
   S3BucketPrefix:
     Type: String
     Description: Enter bucket prefix
-    Default: builder
+    Default: ec2
   PlaybookFileName:
     Type: String
     Description: Enter playbook filename
