@@ -104,6 +104,7 @@ Resources:
                 inputs:
                   commands:
                   - sudo amazon-linux-extras install -y ansible2
+                  - sudo yum install selinux-policy selinux-policy-targeted policycoreutils-python -y
               - name: DownloadPlaybook
                 action: S3Download
                 inputs:
