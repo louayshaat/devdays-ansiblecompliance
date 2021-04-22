@@ -145,8 +145,8 @@ Resources:
   AnsibleImagePipeline:
     Type: 'AWS::ImageBuilder::ImagePipeline'
     Properties:
-      Name: 'Ansible'
-      Description: 'Ansible Image Pipeline'
+      Name: 'CISHardenedAMI'
+      Description: 'CIS Hardened image using Ansible'
       ImageRecipeArn: !Ref Amazon2AnsibleImageRecipe
       InfrastructureConfigurationArn: !Ref Amazon2ImageInfrastructureConfiguration
       DistributionConfigurationArn: !Ref AnsibleDistributionConfiguration
