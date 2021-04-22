@@ -93,8 +93,8 @@ Resources:
       ChangeDescription: First version
       Platform: Linux
       Data: !Sub |
-        name: ‘Ansible Playbook Execution on Amazon Linux 2’
-        description: ‘This is an example component that demonstrates how to download and execute an Ansible playbook against Amazon Linux 2.’
+        name: ‘CIS Hardening using Ansbile on Amazon Linux 2’
+        description: ‘CIS Hardening Level 1 using Ansible.’
         schemaVersion: 1.0
         phases:
           - name: build
