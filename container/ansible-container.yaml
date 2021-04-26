@@ -1,0 +1,355 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+AWSTemplateFormatVersion: 2010-09-09
+Description: Automated end to end  for ECR Images
+Parameters:
+  BuildInstanceType:
+    Type: CommaDelimitedList
+    Default: "t3.large"
+    Description: Instance Type
+  S3AnsibleBucket:
+    Type: String
+    Description: Enter bucketname that contains ansible playbooks
+    Default: ansible-artefacts-automation
+  S3BucketPrefix:
+    Type: String
+    Description: Enter bucket prefix
+    Default: container
+  PlaybookFileName:
+    Type: String
+    Description: Enter playbook filename
+    Default: playbook.yml
+  RepositoryName:
+    Type: String
+    Description: Enter ECR Repository name
+    Default: devdays
+Resources:
+  ECRRepo: 
+    Type: AWS::ECR::Repository
+    Properties: 
+      RepositoryName: !Ref RepositoryName
+      ImageScanningConfiguration: True
+      ImageTagMutability: IMMUTABLE
+  ImageBuilderLogBucket:
+    Type: AWS::S3::Bucket
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      Comment: Role to be used by instance during image build.
+    Properties:
+      RoleName: Ansible-Container
+      ManagedPolicyArns:
+        - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/AWSImageBuilderFullAccess
+        - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/EC2InstanceProfileForImageBuilder
+        - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/EC2InstanceProfileForImageBuilderECRContainerBuilds
+        - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/AmazonS3FullAccess
+        - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/AmazonSSMFullAccess
+        - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/CloudWatchAgentServerPolicy
+        - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+        - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/AmazonSSMPatchAssociation
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+        Version: "2012-10-17"
+      Path: /executionServiceEC2Role/
+  InstanceRoleLoggingPolicy:
+    Type: AWS::IAM::Policy
+    Metadata:
+      Comment: Allows the instance to save log files to an S3 bucket.
+    Properties:
+      PolicyName: ImageBuilderLogBucketPolicy
+      Roles:
+        - Ref: InstanceRole
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - s3:PutObject
+            Effect: Allow
+            Resource:
+              - Fn::Sub:
+                  - arn:${AWS::Partition}:s3:::${BUCKET}/*
+                  - BUCKET:
+                      Ref: ImageBuilderLogBucket
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /executionServiceEC2Role/
+      Roles:
+        - Ref: InstanceRole
+  Amazon2ImageInfrastructureConfiguration:
+    Type: AWS::ImageBuilder::InfrastructureConfiguration
+    Properties:
+      Name: Ansible-Container
+      Description: Standard Intrastructure Configuration
+      InstanceProfileName:
+        Ref: InstanceProfile
+      InstanceTypes:
+        Ref: BuildInstanceType
+      Logging:
+        S3Logs:
+          S3BucketName:
+            Ref: ImageBuilderLogBucket
+          S3KeyPrefix: !Join [ "-", [ 'imagebuilder', !Ref "AWS::StackName" ] ]
+  InstallAnsibleComponent:
+    Type: AWS::ImageBuilder::Component
+    Properties:
+      Name: Ansible-Container
+      Version: 1.0.0
+      Description: Insall Ansible Playbook
+      ChangeDescription: First version
+      Platform: Linux
+      Data: !Sub |
+        name: 'Ansible Playbook Execution on Amazon Linux 2'
+        description: 'This is a sample component that demonstrates how to download and execute an Ansible playbook against Amazon Linux 2.'
+        schemaVersion: 1.0
+        phases:
+          - name: build
+            steps:
+              - name: CreatingFolderWithOverwrite
+                action: CreateFolder
+                inputs:
+                  - path: /tmp/ansible/
+                    overwrite: false
+              - name: DownloadPlaybook
+                action: S3Download
+                inputs:
+                  - source: s3://${S3AnsibleBucket}/${S3BucketPrefix}/*
+                    destination: /tmp/ansible/
+              - name: InstallAnsible
+                action: ExecuteBash
+                inputs:
+                  commands:
+                  - amazon-linux-extras install -y ansible2
+              - name: InvokeAnsible
+                action: ExecuteBash
+                inputs:
+                  commands:
+                  - ansible-playbook /tmp/ansible/${PlaybookFileName}
+  AnsibleContainerRecipe:
+    Type: AWS::ImageBuilder::ContainerRecipe
+    Properties:
+      Name: Ansible-Container
+      Version: 0.0.1
+      
+      # ${AWS::Partition} returns the partition where you are running the CloudFormation template. For standard AWS regions, the
+      # partition is aws. For resources elsewhere, the partition is aws-partitionname. For example, China (Beijing and Ningxia)
+      # regions use aws-cn and AWS GovCloud (US) regions are aws-us-gov.
+      # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/pseudo-parameter-reference.html
+      #ParentImage: amazonlinux:latest
+      ParentImage: amazonlinux:latest
+      #ParentImage: public.ecr.aws/amazonlinux/amazonlinux:2018.03.0.20210224.0
+      ContainerType: 'DOCKER'
+      Components:
+        - ComponentArn:
+            Ref: InstallAnsibleComponent
+      TargetRepository:
+            Service: 'ECR'
+            RepositoryName: !Ref RepositoryName
+      DockerfileTemplateData: |
+          FROM {{{ imagebuilder:parentImage }}}
+          USER root
+          {{{ imagebuilder:environments }}}
+          {{{ imagebuilder:components }}}
+          EXPOSE 80
+          CMD ["httpd","-D", "FOREGROUND"]
+  AnsibleDistributionConfiguration:
+    Type: 'AWS::ImageBuilder::DistributionConfiguration'
+    Properties:
+      Name: Ansible-Container
+      Description: 'Local region distribution'
+      Distributions:
+        - Region: 
+            Fn::Sub: ${AWS::Region}
+          ContainerDistributionConfiguration:
+            Description: Distribution for region
+            TargetRepository:
+              Service: ECR
+              RepositoryName: !Ref RepositoryName
+  AnsibleImagePipeline:
+    Type: 'AWS::ImageBuilder::ImagePipeline'
+    Properties:
+      Name: 'Ansible-Container'
+      Description: 'Ansible Image Pipeline'
+      ContainerRecipeArn: !Ref AnsibleContainerRecipe
+      InfrastructureConfigurationArn: !Ref Amazon2ImageInfrastructureConfiguration
+      DistributionConfigurationArn: !Ref AnsibleDistributionConfiguration
+      Status: 'ENABLED'
+# --------------------------------------------------------------------------------------------------
+#  1- Provisions a CloudWatchEvents Rule that is triggered based on ECR Image Scan Event
+#  2- Provisions a Lambda that creates a finding in AWS Security Hub 
+# --------------------------------------------------------------------------------------------------
+  CaptureECRImageScanEvents:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Capture ECR Scan Events and Trigger an Action
+      EventPattern:
+        detail-type:
+          - ECR Image Scan
+        source:
+          - aws.ecr
+      Name: CaptureECRScanEvent
+      State: ENABLED
+      Targets:
+      - Arn: !GetAtt "ECRToSecHubSendFindingsLambda.Arn"
+        Id: IDCaptureECRImageScanEvents
+  ECRToSecHubSendFindingsLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: ECR2SecurityHubSendFindingsLambda
+      Description: Maps ECR Scan Finding into ASFF before importing to Security Hub
+      Handler: index.lambda_handler
+      MemorySize: 384
+      Role: !GetAtt ECRToSecHubSendFindingsLambdaRole.Arn
+      Runtime: python3.7
+      Timeout: 70
+      Environment:
+        Variables:
+          account_num: !Ref 'AWS::AccountId'
+          region: !Ref 'AWS::Region'
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import datetime
+          import uuid
+          import os
+          def lambda_handler(event, context):
+              # import Lambda ENV VARs
+              accountId = os.environ['account_num']
+              awsRegion = os.environ['region']
+              # Get ECR event details
+              eventDetails = event['detail']
+              repoName = eventDetails['repository-name']
+              imageTags = eventDetails['image-tags']
+              final_image = ' '.join(map(str,imageTags))
+              Line1 = "this container image has high severity vulnerabilities, please patch your container."
+              Line2 = "https://github.com/louayshaat/devdays-ansiblecompliance"
+              
+              findingsevcounts = eventDetails['finding-severity-counts']
+              numCritical = 0
+              numMedium = 0
+              numHigh = 0
+              if findingsevcounts.get('CRITICAL'):
+                  numCritical = findingsevcounts['CRITICAL']
+              if findingsevcounts.get('MEDIUM'):
+                  numMedium = findingsevcounts['MEDIUM']
+              if findingsevcounts.get('HIGH'):
+                  numHigh = findingsevcounts['HIGH']
+                          
+              # send finding to Security Hub
+              severity = "LOW"
+              title = "ECR Finding"
+              ECRComplianceRating = 'PASSED'
+              if numHigh:
+                  severity = "HIGH"
+                  title = "High ECR Vulnerability"
+                  ECRComplianceRating = 'FAILED'
+              if numCritical:
+                  severity = "CRITICAL"
+                  title = "Critical ECR Vulnerability"
+                  ECRComplianceRating = 'FAILED'
+              if numMedium:
+                  severity = "MEDIUM"
+                  title = "Medium ECR Vulnerability"
+                  ECRComplianceRating = 'FAILED'
+              # ISO Time
+              iso8061Time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
+              # ASFF BIF Id
+              asffID = str(uuid.uuid4())
+              # import security hub boto3 client
+              sechub = boto3.client('securityhub')
+              # call BIF
+              try:
+                  response = sechub.batch_import_findings(
+                      Findings=[
+                          {
+                              'SchemaVersion': '2018-10-08',
+                              'Id': asffID,
+                              'ProductArn': 'arn:aws:securityhub:' + awsRegion + ':' + accountId + ':product/' + accountId + '/default',
+                              'ProductFields': {
+                                  "ECRRepoName": "repoName",
+                                  "ECRimageTag": "final_image"
+                              },
+                              'GeneratorId': asffID,
+                              'AwsAccountId': accountId,
+                              'Types': [ 'Software and Configuration Checks' ],
+                              'FirstObservedAt': iso8061Time,
+                              'UpdatedAt': iso8061Time,
+                              'CreatedAt': iso8061Time,
+                              'Severity': {
+                                  'Label': severity
+                              },
+                              'Title': title,
+                              'Description': title,
+                              'Resources': [
+                                  {
+                                      'Type': 'AwsEcr',
+                                      'Id': 'AWS::::Account:' + accountId,
+                                      'Partition': 'aws',
+                                      'Region': awsRegion,
+                                      'Details': {
+                                          'Container': 
+                                          {
+                                          'Name': repoName,
+                                          'ImageId': final_image
+                                          }
+                                          
+                                      }
+                                  }
+                              ],
+                              'Remediation': {
+                                  'Recommendation': {
+                                      'Text': 'this container image has high severity vulnerabilities, please patch your container.',
+                                      'Url': 'https://github.com/louayshaat/devdays-ansiblecompliance'
+                                  }
+                              },
+                              'WorkflowState': 'NEW',
+                              'Compliance': {'Status': ECRComplianceRating},
+                              'RecordState': 'ACTIVE'
+                          }
+                      ]
+                  )
+                  print(response)
+              except Exception as e:
+                  print(e)
+                  print("Submitting finding to Security Hub failed, please troubleshoot further")
+                  raise
+  ECRToSecHubSendFindingsLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Policies:
+      - PolicyName: ECRToSecHubSendFindingsLambda-Policy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - cloudwatch:PutMetricData
+            - securityhub:BatchImportFindings
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: '*'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal: { Service: lambda.amazonaws.com }
+          Action:
+          - sts:AssumeRole
+  PermissionForEventsToInvokeLambdachk:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt "ECRToSecHubSendFindingsLambda.Arn"
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt "CaptureECRImageScanEvents.Arn"
