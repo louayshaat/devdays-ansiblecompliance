@@ -1,0 +1,115 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Automated Image Scan Compliance for ECR using AWS Security Hub
+ 
+Resources:
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+# Create Remediation to deny ECR repository access 
+# -------------------------------------------------------------------------------------------------------------------------------------------------------
+  ECRAccessProhibitedRule: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Name: ECRAccessProhibitedRule
+      Description: "ECRDeny - Deny Access to ECR due to vulnerability assesment"
+      EventPattern: 
+        source: 
+          - aws.securityhub
+        detail-type: 
+          - Security Hub Findings - Custom Action
+        resources: 
+          - !GetAtt ECRActionTarget.Arn
+      State: "ENABLED"
+      Targets: 
+        - 
+          Arn: 
+            Fn::GetAtt: 
+              - "ECRAccessProhibitedLambda"
+              - "Arn"
+          Id: "ECRDeny"
+  
+  ECRActionTarget:
+    Type: Custom::ActionTarget
+    Version: 1.0
+    Properties:
+      ServiceToken: !GetAtt SecurityHubCustomActionTargetLambda.Arn
+      Name: ECRDeny
+      Description: Deny Access to ECR
+      Id: ECRDeny
+
+  ECRAccessProhibitedLambdaPermission: 
+    Type: AWS::Lambda::Permission
+    Properties: 
+      FunctionName: 
+        Ref: "ECRAccessProhibitedLambda"
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: 
+        Fn::GetAtt: 
+          - "ECRAccessProhibitedRule"
+          - "Arn"
+
+  ECRAccessProhibitedLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: ECRAccessProhibitedLambda
+      Description: "ECR1 - Deny Access to ECR due to vulnerability assesment"
+      Handler: index.lambda_handler
+      MemorySize: 256
+      Role: !GetAtt  ECRAccessProhibitedLambdaRole.Arn
+      Runtime: python3.7
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import os
+          def lambda_handler(event, context):
+    
+              repo = event["detail"]["findings"][0]["Resources"][0]["Details"]["Container"]["Name"]
+              print(repo)
+              ecr = boto3.client('ecr')
+              try:
+                  policyText = '{\n  "Version" : "2008-10-17",\n  "Statement" : [ {\n    "Sid" : "deny all",\n    "Effect" : "Deny",\n    "Principal" : "*",\n "Action" : [ "ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage", "ecr:BatchCheckLayerAvailability" ]\n } ]\n}'
+                  response = ecr.set_repository_policy(
+                      repositoryName=repo,
+                      policyText=policyText
+                  )
+                  print("deny policy applied")
+        
+              except Exception as e:
+                  print(e)
+                  print("SSM automation execution error")
+                  raise
+
+  ECRAccessProhibitedLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Policies:
+      - PolicyName: ECRAccessProhibitedLambdaPolicy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - cloudwatch:PutMetricData
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - ssm:StartAutomationExecution
+            - ecr:*
+            - iam:PassRole
+            - securityhub:UpdateFindings
+            Resource: '*'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal: { Service: lambda.amazonaws.com }
+          Action:
+          - sts:AssumeRole
