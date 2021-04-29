@@ -1,7 +1,6 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 AWSTemplateFormatVersion: 2010-09-09
-Description: Automated Image Builder for ECR Images
-
+Description: Automated end to end  for ECR Images
 Parameters:
   BuildInstanceType:
     Type: CommaDelimitedList
@@ -10,7 +9,7 @@ Parameters:
   S3AnsibleBucket:
     Type: String
     Description: Enter bucketname that contains ansible playbooks
-    Default: ansible-artefacts-automation
+    Default: ec2-compliance-dev-123456789
   S3BucketPrefix:
     Type: String
     Description: Enter bucket prefix
@@ -22,9 +21,7 @@ Parameters:
   RepositoryName:
     Type: String
     Description: Enter ECR Repository name
-    Default: devdays
-
-
+    Default: compliance
 Resources:
   ECRRepo: 
     Type: AWS::ECR::Repository
@@ -145,7 +142,8 @@ Resources:
       # regions use aws-cn and AWS GovCloud (US) regions are aws-us-gov.
       # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/pseudo-parameter-reference.html
       #ParentImage: amazonlinux:latest
-      ParentImage: amazonlinux:latest     
+      ParentImage: amazonlinux:latest
+      #ParentImage: public.ecr.aws/amazonlinux/amazonlinux:2018.03.0.20210224.0
       ContainerType: 'DOCKER'
       Components:
         - ComponentArn:
@@ -182,3 +180,176 @@ Resources:
       InfrastructureConfigurationArn: !Ref Amazon2ImageInfrastructureConfiguration
       DistributionConfigurationArn: !Ref AnsibleDistributionConfiguration
       Status: 'ENABLED'
+# --------------------------------------------------------------------------------------------------
+#  1- Provisions a CloudWatchEvents Rule that is triggered based on ECR Image Scan Event
+#  2- Provisions a Lambda that creates a finding in AWS Security Hub 
+# --------------------------------------------------------------------------------------------------
+  CaptureECRImageScanEvents:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Capture ECR Scan Events and Trigger an Action
+      EventPattern:
+        detail-type:
+          - ECR Image Scan
+        source:
+          - aws.ecr
+      Name: CaptureECRScanEvent
+      State: ENABLED
+      Targets:
+      - Arn: !GetAtt "ECRToSecHubSendFindingsLambda.Arn"
+        Id: IDCaptureECRImageScanEvents
+  ECRToSecHubSendFindingsLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: ECR2SecurityHubSendFindingsLambda
+      Description: Maps ECR Scan Finding into ASFF before importing to Security Hub
+      Handler: index.lambda_handler
+      MemorySize: 384
+      Role: !GetAtt ECRToSecHubSendFindingsLambdaRole.Arn
+      Runtime: python3.7
+      Timeout: 70
+      Environment:
+        Variables:
+          account_num: !Ref 'AWS::AccountId'
+          region: !Ref 'AWS::Region'
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import datetime
+          import uuid
+          import os
+          def lambda_handler(event, context):
+              # import Lambda ENV VARs
+              accountId = os.environ['account_num']
+              awsRegion = os.environ['region']
+              # Get ECR event details
+              eventDetails = event['detail']
+              repoName = eventDetails['repository-name']
+              imageTags = eventDetails['image-tags']
+              final_image = ' '.join(map(str,imageTags))
+              Line1 = "this container image has high severity vulnerabilities, please patch your container."
+              Line2 = "https://github.com/louayshaat/devdays-ansiblecompliance"
+              
+              findingsevcounts = eventDetails['finding-severity-counts']
+              numCritical = 0
+              numMedium = 0
+              numHigh = 0
+              if findingsevcounts.get('CRITICAL'):
+                  numCritical = findingsevcounts['CRITICAL']
+              if findingsevcounts.get('MEDIUM'):
+                  numMedium = findingsevcounts['MEDIUM']
+              if findingsevcounts.get('HIGH'):
+                  numHigh = findingsevcounts['HIGH']
+                          
+              # send finding to Security Hub
+              severity = "LOW"
+              title = "ECR Finding"
+              ECRComplianceRating = 'PASSED'
+              if numHigh:
+                  severity = "HIGH"
+                  title = "High ECR Vulnerability"
+                  ECRComplianceRating = 'FAILED'
+              if numCritical:
+                  severity = "CRITICAL"
+                  title = "Critical ECR Vulnerability"
+                  ECRComplianceRating = 'FAILED'
+              if numMedium:
+                  severity = "MEDIUM"
+                  title = "Medium ECR Vulnerability"
+                  ECRComplianceRating = 'FAILED'
+              # ISO Time
+              iso8061Time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
+              # ASFF BIF Id
+              asffID = str(uuid.uuid4())
+              # import security hub boto3 client
+              sechub = boto3.client('securityhub')
+              # call BIF
+              try:
+                  response = sechub.batch_import_findings(
+                      Findings=[
+                          {
+                              'SchemaVersion': '2018-10-08',
+                              'Id': asffID,
+                              'ProductArn': 'arn:aws:securityhub:' + awsRegion + ':' + accountId + ':product/' + accountId + '/default',
+                              'ProductFields': {
+                                  "ECRRepoName": "repoName",
+                                  "ECRimageTag": "final_image"
+                              },
+                              'GeneratorId': asffID,
+                              'AwsAccountId': accountId,
+                              'Types': [ 'Software and Configuration Checks' ],
+                              'FirstObservedAt': iso8061Time,
+                              'UpdatedAt': iso8061Time,
+                              'CreatedAt': iso8061Time,
+                              'Severity': {
+                                  'Label': severity
+                              },
+                              'Title': title,
+                              'Description': title,
+                              'Resources': [
+                                  {
+                                      'Type': 'AwsEcr',
+                                      'Id': 'AWS::::Account:' + accountId,
+                                      'Partition': 'aws',
+                                      'Region': awsRegion,
+                                      'Details': {
+                                          'Container': 
+                                          {
+                                          'Name': repoName,
+                                          'ImageId': final_image
+                                          }
+                                          
+                                      }
+                                  }
+                              ],
+                              'Remediation': {
+                                  'Recommendation': {
+                                      'Text': 'this container image has high severity vulnerabilities, please patch your container.',
+                                      'Url': 'https://github.com/louayshaat/devdays-ansiblecompliance'
+                                  }
+                              },
+                              'WorkflowState': 'NEW',
+                              'Compliance': {'Status': ECRComplianceRating},
+                              'RecordState': 'ACTIVE'
+                          }
+                      ]
+                  )
+                  print(response)
+              except Exception as e:
+                  print(e)
+                  print("Submitting finding to Security Hub failed, please troubleshoot further")
+                  raise
+  ECRToSecHubSendFindingsLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Policies:
+      - PolicyName: ECRToSecHubSendFindingsLambda-Policy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - cloudwatch:PutMetricData
+            - securityhub:BatchImportFindings
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: '*'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal: { Service: lambda.amazonaws.com }
+          Action:
+          - sts:AssumeRole
+  PermissionForEventsToInvokeLambdachk:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt "ECRToSecHubSendFindingsLambda.Arn"
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt "CaptureECRImageScanEvents.Arn"
