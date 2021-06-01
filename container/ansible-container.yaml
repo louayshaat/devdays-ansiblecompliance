@@ -21,7 +21,7 @@ Parameters:
   RepositoryName:
     Type: String
     Description: Enter ECR Repository name
-    Default: devdays
+    Default: workshop
 Resources:
   ECRRepo: 
     Type: AWS::ECR::Repository
