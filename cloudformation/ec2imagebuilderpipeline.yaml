@@ -89,7 +89,7 @@ Resources:
     Properties:
       Name: Ansible
       Version: 0.0.1
-      Description: Insall Ansible Playbook
+      Description: Install Ansible Playbook
       ChangeDescription: First version
       Platform: Linux
       Data: !Sub |
